@@ -3,7 +3,10 @@ module internal FSharp.Management.FilesTypeProvider
 
 open Samples.FSharp.ProvidedTypes
 open FSharp.Management.Helper
+open System
 open System.IO
+open System.Reflection
+open Microsoft.FSharp.Quotations
 
 let createFileProperties (dir:DirectoryInfo,dirNodeType:ProvidedTypeDefinition,relative) =
     try
@@ -55,7 +58,16 @@ let rec annotateDirectoryNode (ownerType:ProvidedTypeDefinition,dir:DirectoryInf
                     match relative with
                     | Some sourcePath -> Some(sourcePath + dir.Name + "/")
                     | None -> None
-                ownerType.AddMemberDelayed (createDirectoryNode(typeSet,subDir,subDir.Name,false,path))
+                
+                ownerType.AddMembersDelayed <| fun _ ->
+                    let ty = createDirectoryNode (typeSet, subDir, subDir.Name, false, path)()
+                    let t = ty :> Type
+                    let prop = 
+                        ProvidedProperty (subDir.Name, ty, [], IsStatic = true, GetterCode = fun _ -> 
+                                            <@@ Activator.CreateInstance t @@>)
+                                            //let ctr = ty.GetConstructor([||])
+                                            //Expr.NewObject(ctr, []))
+                    [ty :> MemberInfo; prop :> _]
             with
             | exn -> ()
     with
